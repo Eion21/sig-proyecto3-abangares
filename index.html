@@ -466,7 +466,7 @@
         center: [initLat, initLng],
         zoom: initZoom,
         minZoom: 10,
-        maxZoom: 16,
+        maxZoom: 15,
         maxBounds: CANTON_BOUNDS.pad(0.08),
         maxBoundsViscosity: 0.85,
         zoomControl: true
@@ -475,8 +475,7 @@
       // Exclusively custom TileMill tile directory (no OSM basemap, no GeoJSON/Shapefile overlays)
       L.tileLayer("tiles/{z}/{x}/{y}.png", {
         minZoom: 10,
-        maxZoom: 16,
-        maxNativeZoom: 15,
+        maxZoom: 15,
         bounds: CANTON_BOUNDS,
         noWrap: true,
         tms: false,
