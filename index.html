@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa Topográfico y Temático — Cantón de Abangares</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg-canvas: #efece4;
+      --surface: rgba(252, 250, 245, 0.94);
+      --surface-solid: #fcfaf5;
+      --border: #d8d1c2;
+      --text-main: #263238;
+      --text-muted: #5c6870;
+      --accent: #83542f;
+      --accent-soft: #f2e8dc;
+      --shadow: 0 4px 18px rgba(38, 50, 56, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text-main);
+      background: var(--bg-canvas);
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: var(--bg-canvas);
+    }
+
+    /* Header panel */
+    .map-header {
+      position: absolute;
+      top: 14px;
+      left: 56px;
+      z-index: 1000;
+      background: var(--surface);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: var(--shadow);
+      max-width: 410px;
+    }
+
+    .map-header h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: 0.01em;
+      line-height: 1.25;
+    }
+
+    .map-header .subtitle {
+      margin-top: 3px;
+      font-size: 0.77rem;
+      color: var(--text-muted);
+    }
+
+    .quick-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .quick-nav button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--surface-solid);
+      color: var(--text-main);
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 4px 9px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .quick-nav button:hover,
+    .quick-nav button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    /* Status HUD (bottom-left) */
+    .status-hud {
+      position: absolute;
+      bottom: 34px;
+      left: 12px;
+      z-index: 1000;
+      background: var(--surface);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 0.74rem;
+      color: var(--text-main);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .status-hud .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+
+    .status-hud .coords {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    /* Collapsible Legend (top-right) */
+    .legend-panel {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 1000;
+      width: 278px;
+      max-height: calc(100vh - 54px);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .legend-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(242, 232, 220, 0.55);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .legend-header h2 {
+      font-size: 0.84rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-main);
+    }
+
+    .legend-toggle {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .legend-body {
+      padding: 10px 14px 20px;
+      overflow-y: auto;
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
+
+    .legend-panel.collapsed .legend-body {
+      display: none;
+    }
+
+    .legend-section {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(216, 209, 194, 0.65);
+    }
+
+    .legend-section:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .legend-section h3 {
+      font-size: 0.71rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .legend-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .legend-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 8px;
+    }
+
+    .swatch-line {
+      width: 22px;
+      height: 0;
+      flex-shrink: 0;
+      border-top: 2.5px solid #333;
+    }
+
+    .swatch-poly {
+      width: 18px;
+      height: 12px;
+      flex-shrink: 0;
+      border-radius: 2px;
+    }
+
+    .swatch-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      margin: 0 4px;
+    }
+
+    .swatch-icon {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+
+    .zoom-hint {
+      margin-left: auto;
+      font-size: 0.67rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    @media (max-width: 720px) {
+      .map-header {
+        left: 52px;
+        right: 12px;
+        max-width: none;
+        padding: 9px 12px;
+      }
+      .legend-panel {
+        top: auto;
+        bottom: 12px;
+        right: 12px;
+        width: 245px;
+        max-height: 48vh;
+      }
+      .status-hud {
+        bottom: 34px;
+        max-width: calc(100vw - 26px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map" role="application" aria-label="Mapa interactivo de mosaicos del cantón de Abangares"></div>
+
+  <header class="map-header">
+    <h1>Cantón de Abangares — Mapa Topográfico</h1>
+    <p class="subtitle">Mosaicos generados con TileMill · Proyección fuente CRTM05 (EPSG:5367)</p>
+    <nav class="quick-nav" aria-label="Accesos rápidos a distritos">
+      <button type="button" data-lat="10.255" data-lng="-85.015" data-zoom="11" class="active">Todo el cantón</button>
+      <button type="button" data-lat="10.281" data-lng="-84.959" data-zoom="15">Las Juntas</button>
+      <button type="button" data-lat="10.189" data-lng="-85.115" data-zoom="14">Colorado</button>
+      <button type="button" data-lat="10.300" data-lng="-84.900" data-zoom="13">La Sierra</button>
+      <button type="button" data-lat="10.240" data-lng="-84.918" data-zoom="13">San Juan</button>
+    </nav>
+  </header>
+
+  <aside class="legend-panel" id="legendPanel" aria-label="Simbología del mapa">
+    <div class="legend-header" id="legendHeader">
+      <h2>Simbología</h2>
+      <button type="button" class="legend-toggle" id="legendToggle" aria-expanded="true">Ocultar</button>
+    </div>
+    <div class="legend-body">
+      <section class="legend-section">
+        <h3>Curvas de nivel (base)</h3>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 2px solid #83542f;"></span>
+          <span>Cada 200 m</span>
+          <span class="zoom-hint">z10–11</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 1.8px solid #855632;"></span>
+          <span>Cada 100 m</span>
+          <span class="zoom-hint">z12</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 1.5px solid #8a5b36;"></span>
+          <span>Cada 50 m</span>
+          <span class="zoom-hint">z13</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 1.2px solid #93643e;"></span>
+          <span>Cada 25 m</span>
+          <span class="zoom-hint">z14–15</span>
+        </div>
+      </section>
+
+      <section class="legend-section">
+        <h3>Capas poligonales</h3>
+        <div class="legend-row">
+          <span class="swatch-poly" style="border: 2px solid #263238; background: transparent;"></span>
+          <span>Límite cantonal</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-poly" style="border: 1.6px dashed #6a1b9a; background: transparent;"></span>
+          <span>Distritos</span>
+          <span class="zoom-hint">z10+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-poly" style="border: 1.5px solid #1b5e20; background: rgba(46,125,50,0.24);"></span>
+          <span>Parques</span>
+          <span class="zoom-hint">z13+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-poly" style="border: 1.4px dashed #00695c; background: rgba(0,150,136,0.20);"></span>
+          <span>Plazas y canchas</span>
+          <span class="zoom-hint">z13+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-poly" style="border: 1.2px dotted #2e7d32; background: rgba(76,175,80,0.14);"></span>
+          <span>Zonas verdes / bosques</span>
+          <span class="zoom-hint">z11+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-poly" style="border: 1.2px dotted #6d4c41; background: rgba(161,136,127,0.14);"></span>
+          <span>Uso residencial / salinas</span>
+          <span class="zoom-hint">z12+</span>
+        </div>
+      </section>
+
+      <section class="legend-section">
+        <h3>Red vial e hidrografía</h3>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 3px solid #e53935;"></span>
+          <span>Carretera primaria</span>
+          <span class="zoom-hint">z11+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 2.6px solid #fb8c00;"></span>
+          <span>Carretera secundaria</span>
+          <span class="zoom-hint">z11+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 2.2px solid #f9a825;"></span>
+          <span>Carretera terciaria</span>
+          <span class="zoom-hint">z12+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 1.8px solid #8d99ae;"></span>
+          <span>Camino vecinal / calles</span>
+          <span class="zoom-hint">z13–14+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 2.4px solid #1565c0;"></span>
+          <span>Ríos principales</span>
+          <span class="zoom-hint">z11+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 1.6px solid #29b6f6;"></span>
+          <span>Quebradas</span>
+          <span class="zoom-hint">z12+</span>
+        </div>
+        <div class="legend-row">
+          <span class="swatch-line" style="border-top: 1.6px dashed #00838f;"></span>
+          <span>Canales</span>
+          <span class="zoom-hint">z13+</span>
+        </div>
+      </section>
+
+      <section class="legend-section">
+        <h3>Equipamiento y servicios</h3>
+        <div class="legend-grid">
+          <div class="legend-row"><span class="swatch-dot" style="background:#c62828;"></span><span>Poblado P1</span></div>
+          <div class="legend-row"><span class="swatch-dot" style="background:#455a64;"></span><span>Poblado P2</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/escuela.svg" alt="" /><span>Escuela</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/colegio.svg" alt="" /><span>Colegio</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/clinica.svg" alt="" /><span>Clínica CCSS</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/ebais.svg" alt="" /><span>EBAIS</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/gasolinera.svg" alt="" /><span>Gasolinera</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/hotel.svg" alt="" /><span>Hotel</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/banco.svg" alt="" /><span>Banco</span></div>
+        </div>
+      </section>
+
+      <section class="legend-section">
+        <h3>Comercios (z14–15)</h3>
+        <div class="legend-grid">
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_restaurante.svg" alt="" /><span>Restaurante</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_comida_rapida.svg" alt="" /><span>Comida rápida</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_supermercado.svg" alt="" /><span>Supermercado</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_farmacia.svg" alt="" /><span>Farmacia</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_ferreteria.svg" alt="" /><span>Ferretería</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_ropa.svg" alt="" /><span>Ropa / joyería</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_tecnologia.svg" alt="" /><span>Electro / tec.</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_panaderia.svg" alt="" /><span>Panadería / carn.</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_automotriz.svg" alt="" /><span>Automotriz</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_veterinaria.svg" alt="" /><span>Veterinaria</span></div>
+          <div class="legend-row"><img class="swatch-icon" src="icons/com_tienda.svg" alt="" /><span>Otros comercios</span></div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div class="status-hud" aria-live="polite">
+    <span class="badge" id="zoomBadge">Zoom 11 · Curvas 200 m</span>
+    <span class="coords" id="coordsDisplay">Lat 10.2550, Lon -85.0150</span>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    (function () {
+      var CANTON_BOUNDS = L.latLngBounds([10.09, -85.24], [10.41, -84.81]);
+      var params = new URLSearchParams(window.location.search);
+      var initLat = parseFloat(params.get("lat")) || 10.255;
+      var initLng = parseFloat(params.get("lng")) || -85.015;
+      var initZoom = parseInt(params.get("z"), 10) || 11;
+
+      var map = L.map("map", {
+        center: [initLat, initLng],
+        zoom: initZoom,
+        minZoom: 10,
+        maxZoom: 16,
+        maxBounds: CANTON_BOUNDS.pad(0.08),
+        maxBoundsViscosity: 0.85,
+        zoomControl: true
+      });
+
+      // Exclusively custom TileMill tile directory (no OSM basemap, no GeoJSON/Shapefile overlays)
+      L.tileLayer("tiles/{z}/{x}/{y}.png", {
+        minZoom: 10,
+        maxZoom: 16,
+        maxNativeZoom: 15,
+        bounds: CANTON_BOUNDS,
+        noWrap: true,
+        tms: false,
+        attribution:
+          "Mapa de mosaicos TileMill · Cantón de Abangares (CRTM05) · Datos: AtlasCR 2008, IGN (geo_hitos), OpenStreetMap"
+      }).addTo(map);
+
+      L.control.scale({ metric: true, imperial: false, position: "bottomleft" }).addTo(map);
+
+      var zoomBadge = document.getElementById("zoomBadge");
+      var coordsDisplay = document.getElementById("coordsDisplay");
+
+      function contourIntervalForZoom(z) {
+        if (z <= 11) return "200 m";
+        if (z === 12) return "100 m";
+        if (z === 13) return "50 m";
+        return "25 m";
+      }
+
+      function updateZoomHud() {
+        var z = map.getZoom();
+        zoomBadge.textContent = "Zoom " + z + " · Curvas " + contourIntervalForZoom(z);
+      }
+
+      map.on("zoomend", updateZoomHud);
+      map.on("mousemove", function (e) {
+        coordsDisplay.textContent =
+          "Lat " + e.latlng.lat.toFixed(4) + ", Lon " + e.latlng.lng.toFixed(4);
+      });
+      coordsDisplay.textContent =
+        "Lat " + initLat.toFixed(4) + ", Lon " + initLng.toFixed(4);
+      updateZoomHud();
+
+      // Quick navigation buttons
+      var navButtons = document.querySelectorAll(".quick-nav button");
+      navButtons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          navButtons.forEach(function (b) { b.classList.remove("active"); });
+          btn.classList.add("active");
+          var lat = parseFloat(btn.getAttribute("data-lat"));
+          var lng = parseFloat(btn.getAttribute("data-lng"));
+          var zoom = parseInt(btn.getAttribute("data-zoom"), 10);
+          map.flyTo([lat, lng], zoom, { duration: 0.7 });
+        });
+      });
+
+      // Legend toggle
+      var legendPanel = document.getElementById("legendPanel");
+      var legendHeader = document.getElementById("legendHeader");
+      var legendToggle = document.getElementById("legendToggle");
+
+      function toggleLegend() {
+        var collapsed = legendPanel.classList.toggle("collapsed");
+        legendToggle.textContent = collapsed ? "Mostrar" : "Ocultar";
+        legendToggle.setAttribute("aria-expanded", String(!collapsed));
+      }
+
+      legendHeader.addEventListener("click", toggleLegend);
+    })();
+  </script>
+</body>
+</html>
